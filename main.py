@@ -29,8 +29,8 @@ def write_msg(user_id, message, attachment):
                                       'attachment': attachment})
 
 def write_msg_photo(user_id):
-    with open('1.jpeg', 'wb') as img_file:
-        upload_image = upload.photo_messages(photos = img_file, peer_id = user_id)[0]
+    with open('12.jpeg', 'rb') as img_file:
+        upload_image = vk_upload.photo_messages(photos = img_file, peer_id = user_id)[0]
         pic = 'photo{}_{}'.format(upload_image['owner_id'], upload_image['id'])
     # resp = vk_upload.photo_messages(photos = ['1.jpeg', '2.jpeg', '3.jpeg'], peer_id = user_id)[0]
     # # att = list()
@@ -69,11 +69,13 @@ def search_users(sex, age, city, user_id):
             write_msg(user_id, '', att)
 
 # Сохраняем фото пользователей перед отправкой
-def save_photo(url_photo):
-    n = 0
-    for url in url_photo:
-        n += 1
-        urllib.request.urlretrieve(url, f'{str(n)}.jpeg')
+def save_photo():
+    url = 'https://sun9-50.userapi.com/impf/9AE-9IoP7erZKVcw6naTd1JhfWwK82FY4WOqlg/koKQnDTatZU.jpg?size=604x604&quality=96&sign=0f1fc3b2d086386af0930e83589c9892&c_uniq_tag=Eg0VyOV4rjZDzTuS10ScfJ_eFmYbjWE5rRdnbUuYUMg&type=album'
+    urllib.request.urlretrieve(url, f'12.jpeg')
+    # n = 0
+    # for url in url_photo:
+    #     n += 1
+    #     urllib.request.urlretrieve(url, f'{str(n)}.jpeg')
 
 def get_best_photo(id):
     id_photo = []
@@ -102,6 +104,8 @@ for event in longpoll.listen():
                 # Получаем данные о пользователе - пол, город, дату рождения. На основании этих данных будем строить поиск.
                 users = vk_user.method('users.get', {'user_ids': event.user_id, 'fields': 'bdate, city, relation, sex'})
                 users = users[0]
+                save_photo()
+                write_msg_photo(event.user_id)
                 if len(users.get('bdate', '0')) > 5:
                    users['age'] = age_in_bdate(users['bdate'])
 
