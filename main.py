@@ -1,10 +1,8 @@
 from random import randrange
-import urllib
 import datetime
 
 from pprint import pprint
 import vk_api
-from vk_api import VkUpload
 from vk_api.longpoll import VkLongPoll, VkEventType
 
 def get_token(use_group: bool):
@@ -19,31 +17,14 @@ def get_token(use_group: bool):
 vk_user = vk_api.VkApi(token=get_token(use_group = False))
 vk_group = vk_api.VkApi(token=get_token(use_group = True))
 longpoll = VkLongPoll(vk_group)
-vk_upload = VkUpload(vk_group)
 users={}
 
-def write_msg(user_id, message, attachment):
+def write_msg(user_id, message, attachment = ''):
     vk_group.method('messages.send', {'user_id': user_id,
                                       'random_id': randrange(10 ** 7),
                                       'message': message,
                                       'attachment': attachment})
 
-def write_msg_photo(user_id, message, photos):
-    save_photo(photos)
-    pic = []
-    for photo in ['1.jpeg', '2.jpeg', '3.jpeg']:
-        with open(photo, 'rb') as img_file:
-            upload_image = vk_upload.photo_messages(photos = img_file, peer_id = user_id)[0]
-            pic.append('photo{}_{}'.format(upload_image['owner_id'], upload_image['id']))
-    # resp = vk_upload.photo_messages(photos = ['1.jpeg', '2.jpeg', '3.jpeg'], peer_id = user_id)[0]
-    # # att = list()
-    # for ph in resp:
-    #     att.append('photo{}_{}'.format(ph['owner_id'], ph['id']))
-    pprint(pic)
-    vk_group.method('messages.send', {'user_id': user_id,
-                                      'message': message,
-                                      'attachment': ','.join(pic),
-                                      'random_id': randrange(10 ** 7)})
 
 def search_users(sex, age, city, user_id):
     if sex == 1:
@@ -65,23 +46,10 @@ def search_users(sex, age, city, user_id):
         #  берем первые три кандидата из фильтрованного списка и формируем набор данных
         for item in open_items[:3]:
             message = f'''{item['first_name']} {item['last_name']} \n https://vk.com/id{str(item['id'])}'''
-            # photos = get_best_photo(item['id'])
-            # write_msg_photo(user_id, message, photos)
             attachment = ','.join(get_best_photo(item['id']))
             write_msg(user_id, message, attachment)
-            # for att in attachment:
-            #     write_msg(user_id, '', att)
     else:
-        return 'Партнеры не найдены...'
-
-
-
-# Сохраняем фото пользователей перед отправкой
-def save_photo(url_photo):
-    n = 0
-    for url in url_photo:
-        n += 1
-        urllib.request.urlretrieve(url, f'{str(n)}.jpeg')
+        write_msg(user_id, 'Партнеры не найдены...')
 
 def get_best_photo(id):
     id_photo = []
@@ -91,18 +59,18 @@ def get_best_photo(id):
                                    'photo_sizes': '1'})
     if photos.get('count') > 0:
         sorted_photo = sorted(photos['items'], key = lambda d: d['likes']['count'] + d['comments']['count'], reverse=True)
-
         for photo in sorted_photo[:3]:
-            # for photo in ph['sizes']:
-            #     if photo['type'] == 'x':
-            #         id_photo.append(photo['url'])
-            id_photo.append(f'''photo{photo['owner_id']}_{photo['id']}''')
-        # save_photo(id_photo)
-        # pprint(id_photo)
+           id_photo.append(f'''photo{photo['owner_id']}_{photo['id']}''')
         return id_photo
-
-# def age_in_bdate(bdate):
-#     return (int(datetime.datetime.now().year) - int(bdate[-4:]))
+def search_city(request):
+    cities = vk_user.method('database.getCities', {'country_id': '1', 'q': request})
+    if cities.get('count') == 0:
+        write_msg(event.user_id,
+                  "Не могу найти такой город, попробуйте ввести еще раз, либо укажите ближайший крупный город.", '')
+    else:
+        #  Берем первый город в списке. Надо бы сделать перебор регионов для правильности...
+        city = cities.get('items')[0]
+        users['city'] = {'id': city.get('id'), 'title': city.get('title')}
 
 for event in longpoll.listen():
     if event.type == VkEventType.MESSAGE_NEW:
@@ -114,54 +82,45 @@ for event in longpoll.listen():
                 # Получаем данные о пользователе - пол, город, дату рождения. На основании этих данных будем строить поиск.
                 users = vk_user.method('users.get', {'user_ids': event.user_id, 'fields': 'bdate, city, relation, sex'})
                 users = users[0]
-                # save_photo()
-                # write_msg_photo(event.user_id)
                 if len(users.get('bdate', '0')) > 5:
                    users['age'] = (int(datetime.datetime.now().year) - int(users['bdate'][-4:]))
 
                 if users.get('city', '0') == '0':
-                   message = "Укажите ваш город"
-                   pprint(users)
+                   write_msg(event.user_id, message = "Укажите ваш город")
                 elif users.get('age', '0') == '0':
-                   #  переделать возраст, если дата рождения вида: 11.10 - символов 5, а 27.2 - 4...
-
-                   message = "Укажите ваш возраст"
-                   # pprint(users)
+                   write_msg(event.user_id, message = "Укажите ваш возраст")
                 else:
-                   # pprint(users)
-                   message = "Начинаю поиск партнеров. Подождите пару секунд..."
+                   write_msg(event.user_id, message = "Начинаю поиск партнеров. Подождите пару секунд...")
                    search_users(users['sex'], users['age'], users['city']['id'], event.user_id)
-                write_msg(event.user_id, message, attachment='')
 
             # Получаем недостающие данные
             elif not request == 'hi' and users.get('id') == event.user_id:
                 if users.get('city', '0') == '0':               # Находим город
+                    # search_city(request)
                     cities = vk_user.method('database.getCities', {'country_id': '1', 'q': request})
                     if cities.get('count') == 0:
-                       write_msg(event.user_id, "Не могу найти такой город, попробуйте ввести еще раз, либо укажите ближайший крупный город.", '')
+                        write_msg(event.user_id, 'Не могу найти такой город, попробуйте ввести еще раз, либо укажите ближайший крупный город.')
                     else:
                        #  Берем первый город в списке. Надо бы сделать перебор регионов для правильности...
-                       city = cities.get('items')[0]
-                       users['city'] = {'id': city.get('id'), 'title': city.get('title')}
-                       if users.get('age', '0') == '0':
-                           message = "Укажите ваш возраст"
-                       else:
-                           message = "Начинаю поиск партнеров. Подождите пару секунд..."
-                           search_users(users['sex'], users['age'], users['city']['id'], event.user_id)
-                       write_msg(event.user_id, message, attachment='')
-
+                        city = cities.get('items')[0]
+                        users['city'] = {'id': city.get('id'), 'title': city.get('title')}
+                        if users.get('age', '0') == '0':
+                            write_msg(event.user_id, message = 'Укажите ваш возраст')
+                        else:
+                            write_msg(event.user_id, message = 'Начинаю поиск партнеров. Подождите пару секунд...')
+                            search_users(users['sex'], users['age'], users['city']['id'], event.user_id)
 
                 elif users.get('age', '0') == '0':
                     if request.isdigit():
                         users['age'] = request
-                        write_msg(event.user_id, "Начинаю поиск партнеров. Подождите пару секунд...", '')
+                        write_msg(event.user_id, 'Начинаю поиск партнеров. Подождите пару секунд...')
                         search_users(users['sex'], users['age'], users['city']['id'], event.user_id)
                     else:
-                        write_msg(event.user_id, "Введите возраст цифрами.", '')
+                        write_msg(event.user_id, 'Введите возраст цифрами.')
                 # Если данные о пользователе все есть, но он снова написал сообщение - сбрасываем все и начинаем сначала
                 else:
                     users.clear()
-                    write_msg(event.user_id, "Что-то пошло не так, давайте начнем с начала... Напишите: start или начать...", '')
+                    write_msg(event.user_id, 'Что-то пошло не так, давайте начнем с начала... Напишите: start или начать...')
 
             else:
-                write_msg(event.user_id, "Не понял вашего вопроса... Для поиска партнеров напишите: start или начать...", '')
+                write_msg(event.user_id, 'Не понял вашего вопроса... Для поиска партнеров напишите: start или начать...')
