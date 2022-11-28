@@ -60,25 +60,24 @@ def search_users(sex, age, city, user_id):
     # оставляем кандидатов с открытой страницей
     if response['count'] > 0:
         open_items = [item for item in response['items'] if item['is_closed'] == False]
-    #     тут надо вставить проверку на показ по id из БД
+        #     тут надо вставить проверку на показ по id из БД
 
-    #  берем первые три кандидата из фильтрованного списка и формируем набор данных
+        #  берем первые три кандидата из фильтрованного списка и формируем набор данных
+        for item in open_items[:3]:
+            message = f'''{item['first_name']} {item['last_name']} \n https://vk.com/id{str(item['id'])}'''
+            # photos = get_best_photo(item['id'])
+            # write_msg_photo(user_id, message, photos)
+            attachment = ','.join(get_best_photo(item['id']))
+            write_msg(user_id, message, attachment)
+            # for att in attachment:
+            #     write_msg(user_id, '', att)
+    else:
+        return 'Партнеры не найдены...'
 
-    for item in open_items[:3]:
-        message = f'''{item['first_name']} {item['last_name']} \n https://vk.com/id{str(item['id'])}'''
-        photos = get_best_photo(item['id'])
-        write_msg_photo(user_id, message, photos)
 
-
-        # attachment = get_best_photo(item['id'])
-        # write_msg(user_id, message, '')
-        # for att in attachment:
-        #     write_msg(user_id, '', att)
 
 # Сохраняем фото пользователей перед отправкой
 def save_photo(url_photo):
-    # url = 'https://sun9-50.userapi.com/impf/9AE-9IoP7erZKVcw6naTd1JhfWwK82FY4WOqlg/koKQnDTatZU.jpg?size=604x604&quality=96&sign=0f1fc3b2d086386af0930e83589c9892&c_uniq_tag=Eg0VyOV4rjZDzTuS10ScfJ_eFmYbjWE5rRdnbUuYUMg&type=album'
-    # urllib.request.urlretrieve(url, f'12.jpeg')
     n = 0
     for url in url_photo:
         n += 1
@@ -93,17 +92,17 @@ def get_best_photo(id):
     if photos.get('count') > 0:
         sorted_photo = sorted(photos['items'], key = lambda d: d['likes']['count'] + d['comments']['count'], reverse=True)
 
-        for ph in sorted_photo[:3]:
-            for photo in ph['sizes']:
-                if photo['type'] == 'x':
-                    id_photo.append(photo['url'])
-            # id_photo.append(f'''https://vk.com/id{photo['owner_id']}?z=photo{photo['owner_id']}_{photo['id']}''')
+        for photo in sorted_photo[:3]:
+            # for photo in ph['sizes']:
+            #     if photo['type'] == 'x':
+            #         id_photo.append(photo['url'])
+            id_photo.append(f'''photo{photo['owner_id']}_{photo['id']}''')
         # save_photo(id_photo)
         # pprint(id_photo)
         return id_photo
 
-def age_in_bdate(bdate):
-    return (int(datetime.datetime.now().year) - int(bdate[-4:]))
+# def age_in_bdate(bdate):
+#     return (int(datetime.datetime.now().year) - int(bdate[-4:]))
 
 for event in longpoll.listen():
     if event.type == VkEventType.MESSAGE_NEW:
@@ -118,7 +117,7 @@ for event in longpoll.listen():
                 # save_photo()
                 # write_msg_photo(event.user_id)
                 if len(users.get('bdate', '0')) > 5:
-                   users['age'] = age_in_bdate(users['bdate'])
+                   users['age'] = (int(datetime.datetime.now().year) - int(users['bdate'][-4:]))
 
                 if users.get('city', '0') == '0':
                    message = "Укажите ваш город"
