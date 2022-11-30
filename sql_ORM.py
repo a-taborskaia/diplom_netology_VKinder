@@ -1,6 +1,7 @@
-from sqlalchemy import create_engine, MetaData, Integer, Column, ForeignKey
+from sqlalchemy import create_engine, MetaData, Integer, Column, ForeignKey, PrimaryKeyConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
+from pprint import pprint
 # Подключение к БД
 
 def sql_connect():
@@ -23,15 +24,21 @@ class Client(Base):
     __tablename__ = 'clients'
     id_client = Column(Integer, primary_key=True)
     user_id = Column(Integer, nullable=False, unique=True)
+    # Объявляется отношение многие ко многим к User через промежуточную таблицу kinders
+    users = relationship("User", secondary='kinders')
 
 class User(Base):
     __tablename__ = 'users'
     id_user = Column(Integer, primary_key=True)
     user_id = Column(Integer, nullable=False, unique=True)
+    # Объявляется отношение многие ко многим к Client через промежуточную таблицу kinders
+    clients = relationship("Client", secondary='kinders')
 
 class Kinder(Base):
     __tablename__ = 'kinders'
-    id_kinder = Column(Integer, primary_key=True)
+    # здесь мы объявляем составной ключ, состоящий из двух полей
+    __table_args__ = (PrimaryKeyConstraint('id_client', 'id_user'),)
+    # В промежуточной таблице явно указываются что следующие поля являются внешними ключами
     id_client = Column(Integer, ForeignKey("clients.id_client"))
     id_user = Column(Integer, ForeignKey("users.id_user"))
 
@@ -58,12 +65,18 @@ def write_user_id(user_id, session: sessionmaker):
 
 def write_kinder(user_id, client_id, session: sessionmaker):
     # session = Session
-    kinder= session.query(Kinder).filter(and_(id_client == client_id,
-                                               id_user == user_id)).scalar()
-    if not kinder:
-        kinder = Kinder(id_client = client_id,
-                        id_user = user_id)
-    session.add(kinder)
-    session.commit()
-    session.close()
+    # select * from kinders
+    # join users on kinders.id_user = users.id_user
+    # join clients on kinders.id_client = clients.id_client
+    # where users.user_id = 491511729 and clients.user_id = 23034618;
 
+    kinder = session.query(Kinder).join(Client.users).filter(Client.user_id == client_id, User.user_id == user_id)
+    pprint(kinder[0].id_user)
+    if not kinder:
+        kinder = Kinder(id_client = client_id, id_user = user_id)
+    # session.add(kinder)
+    # session.commit()
+    # session.close()
+
+session = Session()
+write_kinder(user_id=491511729, client_id=23034618, session=session)
