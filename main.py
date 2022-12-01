@@ -7,10 +7,7 @@ from vk_api.longpoll import VkLongPoll, VkEventType
 from sql_ORM import Session, write_db
 
 def get_token(use_group: bool):
-  if use_group:
-      file = 'group'
-  else:
-      file = 'user'
+  file = 'group' if use_group else 'user'
   with open(file + '.txt', 'r') as f:
     token = f.readline()
   return token
@@ -68,15 +65,6 @@ def get_best_photo(id):
         for photo in sorted_photo[:3]:
            id_photo.append(f'''photo{photo['owner_id']}_{photo['id']}''')
         return id_photo
-# def search_city(request):
-#     cities = vk_user.method('database.getCities', {'country_id': '1', 'q': request})
-#     if cities.get('count') == 0:
-#         write_msg(event.user_id,
-#                   "Не могу найти такой город, попробуйте ввести еще раз, либо укажите ближайший крупный город.", '')
-#     else:
-#         #  Берем первый город в списке. Надо бы сделать перебор регионов для правильности...
-#         city = cities.get('items')[0]
-#         users['city'] = {'id': city.get('id'), 'title': city.get('title')}
 
 for event in longpoll.listen():
     if event.type == VkEventType.MESSAGE_NEW:
