@@ -20,11 +20,12 @@ Base = declarative_base()
 metadata = MetaData()
 
 # Создание таблиц:
+# Таблица искателей
 class User(Base):
     __tablename__ = 'users'
     id_user = Column(Integer, primary_key=True)
     user_id = Column(Integer, nullable=False, unique=True)
-
+# Таблица с кандидатами, уже предлагаемыми пользователю
 class Search(Base):
     __tablename__ = 'search'
     id_search = Column(Integer, primary_key=True)
@@ -33,7 +34,7 @@ class Search(Base):
 
 # Создание таблиц (выполнили один раз, не стала вствлять в основной код):
 Base.metadata.create_all(engine)
-
+# Добавление данных в таблицу, если пользователя нет - функция вернет TRUE
 def write_db(user_id, user_search, session: sessionmaker):
     not_user = False
     user = session.query(User).filter_by(user_id=user_id).scalar()
@@ -49,5 +50,3 @@ def write_db(user_id, user_search, session: sessionmaker):
     session.commit()
     session.close()
     return not_user
-
-session = Session()
