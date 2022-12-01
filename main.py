@@ -4,6 +4,7 @@ import datetime
 from pprint import pprint
 import vk_api
 from vk_api.longpoll import VkLongPoll, VkEventType
+from sql_ORM import Session, write_db
 
 def get_token(use_group: bool):
   if use_group:
@@ -25,8 +26,8 @@ def write_msg(user_id, message, attachment = ''):
                                       'message': message,
                                       'attachment': attachment})
 
-
 def search_users(sex, age, city, user_id):
+
     if sex == 1:
        sex = '2'
     else:
@@ -40,14 +41,19 @@ def search_users(sex, age, city, user_id):
                                                'age_to': age,})
     # оставляем кандидатов с открытой страницей
     if response['count'] > 0:
+        session = Session()
         open_items = [item for item in response['items'] if item['is_closed'] == False]
-        #     тут надо вставить проверку на показ по id из БД
+        count_users = 0
+        #  берем трёх кандидатов из фильтрованного списка и формируем набор данных
+        for item in open_items:
+            if write_db(user_id=user_id, user_search=item['id'], session=session):
+                message = f'''{item['first_name']} {item['last_name']} \n https://vk.com/id{str(item['id'])}'''
+                attachment = ','.join(get_best_photo(item['id']))
+                write_msg(user_id, message, attachment)
+                count_users += 1
+                if count_users == 3:
+                    break
 
-        #  берем первые три кандидата из фильтрованного списка и формируем набор данных
-        for item in open_items[:3]:
-            message = f'''{item['first_name']} {item['last_name']} \n https://vk.com/id{str(item['id'])}'''
-            attachment = ','.join(get_best_photo(item['id']))
-            write_msg(user_id, message, attachment)
     else:
         write_msg(user_id, 'Партнеры не найдены...')
 
@@ -62,15 +68,15 @@ def get_best_photo(id):
         for photo in sorted_photo[:3]:
            id_photo.append(f'''photo{photo['owner_id']}_{photo['id']}''')
         return id_photo
-def search_city(request):
-    cities = vk_user.method('database.getCities', {'country_id': '1', 'q': request})
-    if cities.get('count') == 0:
-        write_msg(event.user_id,
-                  "Не могу найти такой город, попробуйте ввести еще раз, либо укажите ближайший крупный город.", '')
-    else:
-        #  Берем первый город в списке. Надо бы сделать перебор регионов для правильности...
-        city = cities.get('items')[0]
-        users['city'] = {'id': city.get('id'), 'title': city.get('title')}
+# def search_city(request):
+#     cities = vk_user.method('database.getCities', {'country_id': '1', 'q': request})
+#     if cities.get('count') == 0:
+#         write_msg(event.user_id,
+#                   "Не могу найти такой город, попробуйте ввести еще раз, либо укажите ближайший крупный город.", '')
+#     else:
+#         #  Берем первый город в списке. Надо бы сделать перебор регионов для правильности...
+#         city = cities.get('items')[0]
+#         users['city'] = {'id': city.get('id'), 'title': city.get('title')}
 
 for event in longpoll.listen():
     if event.type == VkEventType.MESSAGE_NEW:
@@ -82,6 +88,7 @@ for event in longpoll.listen():
                 # Получаем данные о пользователе - пол, город, дату рождения. На основании этих данных будем строить поиск.
                 users = vk_user.method('users.get', {'user_ids': event.user_id, 'fields': 'bdate, city, relation, sex'})
                 users = users[0]
+
                 if len(users.get('bdate', '0')) > 5:
                    users['age'] = (int(datetime.datetime.now().year) - int(users['bdate'][-4:]))
 
@@ -91,7 +98,7 @@ for event in longpoll.listen():
                    write_msg(event.user_id, message = "Укажите ваш возраст")
                 else:
                    write_msg(event.user_id, message = "Начинаю поиск партнеров. Подождите пару секунд...")
-                   search_users(users['sex'], users['age'], users['city']['id'], event.user_id)
+                   search_users(users['sex'], users['age'], users['city']['id'], user_id=event.user_id)
 
             # Получаем недостающие данные
             elif not request == 'hi' and users.get('id') == event.user_id:
@@ -108,13 +115,13 @@ for event in longpoll.listen():
                             write_msg(event.user_id, message = 'Укажите ваш возраст')
                         else:
                             write_msg(event.user_id, message = 'Начинаю поиск партнеров. Подождите пару секунд...')
-                            search_users(users['sex'], users['age'], users['city']['id'], event.user_id)
+                            search_users(users['sex'], users['age'], users['city']['id'], user_id=event.user_id)
 
                 elif users.get('age', '0') == '0':
                     if request.isdigit():
                         users['age'] = request
                         write_msg(event.user_id, 'Начинаю поиск партнеров. Подождите пару секунд...')
-                        search_users(users['sex'], users['age'], users['city']['id'], event.user_id)
+                        search_users(users['sex'], users['age'], users['city']['id'], user_id=event.user_id)
                     else:
                         write_msg(event.user_id, 'Введите возраст цифрами.')
                 # Если данные о пользователе все есть, но он снова написал сообщение - сбрасываем все и начинаем сначала
