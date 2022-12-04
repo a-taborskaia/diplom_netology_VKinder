@@ -26,10 +26,12 @@ class VKinder:
         self.vk = vk_api.VkApi(token=self.token)
     # Получение данных о пользователе, написавшем сообщение
     def get_user_data(self, user_id):
-        response = self.vk.method('users.get', {'user_ids': user_id, 'fields': 'bdate, city, relation, sex'})
+        response = {}
+        response = self.vk.method('users.get', {'user_ids': user_id, 'fields': 'bdate, city, relation, sex'})[0]
         return response
     # Поиск пользователей, подходящих для знакомства
     def user_search(self, sex, age, city):
+        response = {}
         sex = '2' if sex == 1 else '1'
         response = self.vk.method('users.search', {'count': '1000',
                                                    'fields': 'bdate, city, relation, sex',
@@ -41,18 +43,20 @@ class VKinder:
         return response
     # Поиск трех лучших фотографий
     def photo_search(self, user_id):
+        response = {}
         id_photo = []
         response = self.vk.method('photos.get', {'owner_id': user_id,
                                             'album_id': 'profile',
                                             'extended': '1',
                                             'photo_sizes': '1'})
-        if response.get('count') > 0:
+        if response.get('count', 0) > 0:
             sorted_photo = sorted(response['items'], key=lambda d: d['likes']['count'] + d['comments']['count'],
                                   reverse=True)
             for photo in sorted_photo[:3]:
                 id_photo.append(f'''photo{photo['owner_id']}_{photo['id']}''')
-            return id_photo
+        return id_photo
     # Поиск города
     def city_search(self, request):
+        response = {}
         response = self.vk.method('database.getCities', {'country_id': '1', 'q': request})
         return response
